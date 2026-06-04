@@ -84,6 +84,13 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
           _profileImageUrl = data['profile_image'];
           _isLoading = false;
         });
+
+        // Sync with local session
+        await SessionManager.setUser(data);
+        // Refresh navbar image in main screen and WAIT for it
+        if (MainScreen.mainScreenKey.currentState != null) {
+          await MainScreen.mainScreenKey.currentState!.refresh();
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -185,7 +192,9 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(decoded['message'] ?? 'Profile updated successfully'), backgroundColor: Colors.green),
           );
-          Navigator.pop(context, true); // Return true to indicate update
+          // Refetch profile and WAIT for it to sync local session with latest server data
+          await _fetchProfile();
+          if (mounted) Navigator.pop(context, true); // Return true to indicate update
         }
       } else {
         throw Exception(response.body);

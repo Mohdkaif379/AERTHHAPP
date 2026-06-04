@@ -12,6 +12,12 @@ class SessionManager {
     await prefs.setString(_keyUser, jsonEncode(userData));
   }
 
+  // Update User Data only
+  static Future<void> setUser(Map<String, dynamic> userData) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyUser, jsonEncode(userData));
+  }
+
   // Get Token
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
