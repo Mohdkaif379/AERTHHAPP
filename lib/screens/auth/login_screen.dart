@@ -7,6 +7,7 @@ import '../../utils/session_manager.dart';
 import '../main_screen.dart';
 import '../forgetpassword/send_otp_screen.dart';
 import 'signup_screen.dart';
+import '../../utils/fcm_manager.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -95,6 +96,12 @@ class _LoginScreenState extends State<LoginScreen> {
           
           // Save Session
           await SessionManager.saveSession(token, customer);
+          
+          // Register FCM Token
+          final customerId = customer['id'];
+          if (customerId != null) {
+            FcmManager.registerToken(int.parse(customerId.toString()));
+          }
           
           HapticFeedback.mediumImpact();
           if (!mounted) return;

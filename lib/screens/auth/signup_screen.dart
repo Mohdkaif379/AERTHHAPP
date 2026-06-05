@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import '../../utils/session_manager.dart';
+import '../../utils/fcm_manager.dart';
 import '../main_screen.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -142,6 +143,12 @@ class _SignupScreenState extends State<SignupScreen> {
           final customer = decoded['customer'] ?? {};
           
           await SessionManager.saveSession(token, customer);
+          
+          // Register FCM Token
+          final customerId = customer['id'];
+          if (customerId != null) {
+            FcmManager.registerToken(int.parse(customerId.toString()));
+          }
           
           HapticFeedback.mediumImpact();
           if (!mounted) return;

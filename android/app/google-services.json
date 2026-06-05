@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "679768027252",
+    "project_id": "iram-automobiles",
+    "storage_bucket": "iram-automobiles.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:679768027252:android:50c226d2d151a7cc246121",
+        "android_client_info": {
+          "package_name": "aerthh.com"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDoL80iQViP45vMnVAAeo0BZR8o7dldGmM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:679768027252:android:4f65b721a7f02cd5246121",
+        "android_client_info": {
+          "package_name": "com.example.btx_emp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDoL80iQViP45vMnVAAeo0BZR8o7dldGmM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
