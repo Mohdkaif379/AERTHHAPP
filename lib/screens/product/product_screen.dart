@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -45,6 +46,45 @@ class _ProductScreenState extends State<ProductScreen> {
   final Set<int> _wishlistProductIds = {};
   final Set<int> _cartProductIds = {};
 
+  // Filter / sort
+  String _selectedFilter = 'All';
+  static const List<String> _filterOptions = [
+    'All',
+    'Price: Low to High',
+    'Price: High to Low',
+    'Name: A to Z',
+    'Name: Z to A',
+  ];
+
+  // Search
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounce;
+  bool _isSearching = false;
+  bool _isSearchLoading = false;
+  List<_ProductData> _searchResults = [];
+  final List<String> _recentSearches = []; // Simple in-memory history
+
+  List<_ProductData> get _filteredProducts {
+    final list = List<_ProductData>.from(_products);
+    switch (_selectedFilter) {
+      case 'Price: Low to High':
+        list.sort((a, b) => a.discountedPrice.compareTo(b.discountedPrice));
+        break;
+      case 'Price: High to Low':
+        list.sort((a, b) => b.discountedPrice.compareTo(a.discountedPrice));
+        break;
+      case 'Name: A to Z':
+        list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        break;
+      case 'Name: Z to A':
+        list.sort((a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()));
+        break;
+      default:
+        break;
+    }
+    return list;
+  }
+
   bool get _isCollapsed => _scrollOffset > _collapseOffset;
 
   @override
@@ -59,8 +99,92 @@ class _ProductScreenState extends State<ProductScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _performSearch(String query) async {
+    if (query.isEmpty) return;
+
+    try {
+      final uri = _productsUri.replace(queryParameters: {'product_name': query});
+      final response = await http.get(uri);
+
+      if (response.statusCode != 200) throw Exception('Search failed');
+
+      final decoded = jsonDecode(response.body);
+      final rawProducts = decoded is List
+          ? decoded
+          : decoded is Map<String, dynamic>
+              ? decoded['data']
+              : null;
+
+      if (rawProducts is! List) throw const FormatException('Invalid response');
+
+      final results = rawProducts
+          .whereType<Map<String, dynamic>>()
+          .map(_ProductData.fromJson)
+          .where((p) => p.isActive && p.name.isNotEmpty)
+          // Strict relevance filter
+          .where((p) => p.name.toLowerCase().contains(query.toLowerCase()))
+          .toList();
+
+      if (!mounted) return;
+      setState(() {
+        _searchResults = results;
+        _isSearchLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isSearchLoading = false;
+      });
+    }
+  }
+
+  void _onSearchChanged(String query) {
+    _searchDebounce?.cancel();
+    if (query.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _isSearching = true;
+          _searchResults = [];
+          _isSearchLoading = false;
+        });
+      }
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _isSearching = true;
+        _isSearchLoading = true;
+      });
+    }
+
+    _searchDebounce = Timer(const Duration(milliseconds: 500), () {
+      _performSearch(query);
+      if (query.length > 2 && !_recentSearches.contains(query)) {
+        _recentSearches.add(query);
+        if (_recentSearches.length > 10) _recentSearches.removeAt(0);
+      }
+    });
+  }
+
+  void _onSearchTap() {
+    setState(() {
+      _isSearching = true;
+    });
+  }
+
+  void _onSearchCancel() {
+    setState(() {
+      _isSearching = false;
+      _searchController.clear();
+      _searchResults = [];
+    });
   }
 
   Future<void> _fetchProducts() async {
@@ -112,6 +236,12 @@ class _ProductScreenState extends State<ProductScreen> {
   }
 
   void _openProductDetails(_ProductData product) {
+    if (!_recentSearches.contains(product.name)) {
+      setState(() {
+        _recentSearches.add(product.name);
+        if (_recentSearches.length > 10) _recentSearches.removeAt(0);
+      });
+    }
     HapticFeedback.mediumImpact();
     Navigator.of(context).push(
       ProductDetailsScreen.route(
@@ -360,6 +490,11 @@ class _ProductScreenState extends State<ProductScreen> {
       ),
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       child: _SearchField(
+        controller: _searchController,
+        onChanged: _onSearchChanged,
+        onTap: _onSearchTap,
+        onBackTap: _onSearchCancel,
+        showBackButton: _isSearching,
         border: _border,
         goldMid: _goldMid,
         goldLight: _goldLight,
@@ -372,6 +507,11 @@ class _ProductScreenState extends State<ProductScreen> {
       color: _bg.withValues(alpha: 0.97),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
       child: _SearchField(
+        controller: _searchController,
+        onChanged: _onSearchChanged,
+        onTap: _onSearchTap,
+        onBackTap: _onSearchCancel,
+        showBackButton: _isSearching,
         border: _border,
         goldMid: _goldMid,
         goldLight: _goldLight,
@@ -379,17 +519,202 @@ class _ProductScreenState extends State<ProductScreen> {
     );
   }
 
+  Widget _buildSearchSuggestionsDropdown() {
+    if (_searchController.text.isEmpty) return const SizedBox.shrink();
+
+    // Show top 10 products as suggestions
+    final suggestions = _searchResults.take(10).toList();
+
+    return Positioned(
+      top: 0,
+      left: 16,
+      right: 16,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 20),
+        decoration: BoxDecoration(
+          color: _bg3,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.5),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'PRODUCTS',
+                    style: TextStyle(
+                      color: _goldMid.withValues(alpha: 0.7),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  Text(
+                    'Showing ${suggestions.length} products',
+                    style: TextStyle(
+                      color: _goldMid.withValues(alpha: 0.5),
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            if (_isSearchLoading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: _gold)),
+              )
+            else if (suggestions.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Center(
+                  child: Text(
+                    'No products found',
+                    style: TextStyle(color: _goldMid.withValues(alpha: 0.4), fontSize: 13),
+                  ),
+                ),
+              )
+            else
+              ...suggestions.map((p) => Column(
+                children: [
+                  ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    leading: Container(
+                      width: 45,
+                      height: 45,
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Image.network(p.imageUrl, fit: BoxFit.contain),
+                    ),
+                    title: Text(
+                      p.name,
+                      style: const TextStyle(
+                        color: _goldLight,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      p.displayPrice,
+                      style: const TextStyle(
+                        color: _gold,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    trailing: Icon(Icons.arrow_forward_ios_rounded, size: 12, color: _goldMid.withValues(alpha: 0.4)),
+                    onTap: () => _openProductDetails(p),
+                  ),
+                  Divider(height: 1, color: _border, indent: 16, endIndent: 16),
+                ],
+              )),
+
+            // Footer
+            InkWell(
+              onTap: () {
+                setState(() => _isSearching = false);
+              },
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                alignment: Alignment.center,
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'View all products',
+                      style: TextStyle(
+                        color: _goldLight,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Icon(Icons.arrow_forward_rounded, size: 14, color: _goldLight),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildSectionHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      child: Text(
-        'All Products',
-        style: TextStyle(
-          color: _goldLight,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 1.5,
-        ),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'All Products',
+            style: TextStyle(
+              color: _goldLight,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.5,
+            ),
+          ),
+          // ── Filter Dropdown ──────────────────────────────
+          Container(
+            height: 34,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: _bg3,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _border),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedFilter,
+                dropdownColor: _bg3,
+                iconEnabledColor: _goldMid,
+                icon: const Icon(Icons.filter_list_rounded, size: 16),
+                isDense: true,
+                style: TextStyle(color: _goldMid, fontSize: 11),
+                items: _filterOptions.map((opt) {
+                  return DropdownMenuItem(
+                    value: opt,
+                    child: Text(
+                      opt,
+                      style: TextStyle(
+                        color: _selectedFilter == opt ? _goldLight : _goldMid,
+                        fontWeight: _selectedFilter == opt
+                            ? FontWeight.w700
+                            : FontWeight.w400,
+                        fontSize: 11,
+                      ),
+                    ),
+                  );
+                }).toList(),
+                onChanged: (val) {
+                  if (val != null) setState(() => _selectedFilter = val);
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -452,7 +777,7 @@ class _ProductScreenState extends State<ProductScreen> {
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
       sliver: SliverGrid(
         delegate: SliverChildBuilderDelegate((context, index) {
-          final product = _products[index];
+          final product = _filteredProducts[index];
           return _ProductCard(
             product: product,
             gold: _gold,
@@ -466,7 +791,7 @@ class _ProductScreenState extends State<ProductScreen> {
             onWishlistTap: () => _toggleWishlist(product),
             onAddToCartTap: () => _addToCart(product),
           );
-        }, childCount: _products.length),
+        }, childCount: _filteredProducts.length),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
           childAspectRatio: 0.66,
@@ -505,11 +830,16 @@ class _ProductScreenState extends State<ProductScreen> {
                 child: _buildCompactSearch(),
               ),
               Expanded(
-                child: CustomScrollView(
-                  controller: _scrollController,
-                  slivers: [
-                    SliverToBoxAdapter(child: _buildSectionHeader()),
-                    _buildProductGrid(),
+                child: Stack(
+                  children: [
+                    CustomScrollView(
+                      controller: _scrollController,
+                      slivers: [
+                        SliverToBoxAdapter(child: _buildSectionHeader()),
+                        _buildProductGrid(),
+                      ],
+                    ),
+                    if (_isSearching) _buildSearchSuggestionsDropdown(),
                   ],
                 ),
               ),
@@ -603,9 +933,21 @@ class _SearchField extends StatelessWidget {
     required this.border,
     required this.goldMid,
     required this.goldLight,
+    this.controller,
+    this.onChanged,
+    this.onSubmitted,
+    this.onTap,
+    this.onBackTap,
+    this.showBackButton = false,
   });
 
   final Color border, goldMid, goldLight;
+  final TextEditingController? controller;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  final VoidCallback? onTap;
+  final VoidCallback? onBackTap;
+  final bool showBackButton;
 
   @override
   Widget build(BuildContext context) {
@@ -619,13 +961,28 @@ class _SearchField extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.search_rounded, color: goldMid, size: 18),
-          const SizedBox(width: 10),
+          if (showBackButton)
+            GestureDetector(
+              onTap: onBackTap,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Icon(Icons.arrow_back_rounded, color: goldMid, size: 20),
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: Icon(Icons.search_rounded, color: goldMid, size: 18),
+            ),
           Expanded(
             child: TextField(
+              controller: controller,
+              onChanged: onChanged,
+              onSubmitted: onSubmitted,
+              onTap: onTap,
               style: TextStyle(color: goldLight, fontSize: 13),
               decoration: InputDecoration(
-                hintText: 'Search products...',
+                hintText: 'Search products, brands and more...',
                 hintStyle: TextStyle(
                   color: goldMid.withValues(alpha: 0.4),
                   fontSize: 13,
@@ -636,6 +993,14 @@ class _SearchField extends StatelessWidget {
               ),
             ),
           ),
+          if (controller != null && controller!.text.isNotEmpty)
+            GestureDetector(
+              onTap: () {
+                controller!.clear();
+                if (onChanged != null) onChanged!('');
+              },
+              child: Icon(Icons.close_rounded, color: goldMid, size: 16),
+            ),
         ],
       ),
     );

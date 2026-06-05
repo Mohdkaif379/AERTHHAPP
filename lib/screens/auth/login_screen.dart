@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../../utils/session_manager.dart';
 import '../main_screen.dart';
 import '../forgetpassword/send_otp_screen.dart';
+import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -362,21 +363,37 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
 
                   const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        "Don't have an account?",
-                        style: TextStyle(color: _goldMid.withValues(alpha: 0.6), fontSize: 13),
-                      ),
-                      TextButton(
-                        onPressed: () {},
-                        child: const Text(
-                          'Sign Up',
-                          style: TextStyle(color: _goldLight, fontWeight: FontWeight.bold, fontSize: 13),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 20),
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 4,
+                      children: [
+                        Text(
+                          "Don't have an account?",
+                          style: TextStyle(color: _goldMid.withValues(alpha: 0.6), fontSize: 13),
                         ),
-                      ),
-                    ],
+                        TextButton(
+                          onPressed: () {
+                            HapticFeedback.lightImpact();
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const SignupScreen()),
+                            );
+                          },
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text(
+                            'Sign Up',
+                            style: TextStyle(color: _goldLight, fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
