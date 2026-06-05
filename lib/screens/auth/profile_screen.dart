@@ -10,6 +10,9 @@ import '../order/orders.dart';
 import '../order/track_order.dart';
 import '../order/history_screen.dart';
 import 'my_profile_screen.dart';
+import '../helpcenter/help_center_screen.dart';
+import '../privacy/privacy_center_screen.dart';
+import '../settings/setting_screen.dart';
 
 class UserProfile {
   final String id;
@@ -308,19 +311,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         },
                       ),
 
-                      const SizedBox(height: 30),
-                      const _SectionTitle('Preferences'),
-                      _ToggleOption(
-                        icon: Icons.notifications_none_rounded,
-                        label: 'Push Notifications',
-                        value: isNotificationsEnabled,
-                        onChanged: (v) => setState(() => isNotificationsEnabled = v),
-                      ),
-                      _ToggleOption(
-                        icon: Icons.lock_outline_rounded,
-                        label: 'Privacy Mode',
-                        value: isPrivateAccount,
-                        onChanged: (v) => setState(() => isPrivateAccount = v),
+                      const _SectionTitle('App Settings'),
+                      _SettingsOption(
+                        icon: Icons.settings_outlined,
+                        label: 'Settings',
+                        onTap: () {
+                          HapticFeedback.mediumImpact();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const SettingScreen()),
+                          );
+                        },
                       ),
 
                       const SizedBox(height: 30),
@@ -328,12 +329,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       _SettingsOption(
                         icon: Icons.help_outline_rounded,
                         label: 'Help Center',
-                        onTap: () => HapticFeedback.mediumImpact(),
+                        onTap: () {
+                          HapticFeedback.mediumImpact();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const HelpCenterScreen()),
+                          );
+                        },
                       ),
                       _SettingsOption(
                         icon: Icons.shield_outlined,
                         label: 'Privacy Policy',
-                        onTap: () => HapticFeedback.mediumImpact(),
+                        onTap: () {
+                          HapticFeedback.mediumImpact();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const PrivacyCenterScreen()),
+                          );
+                        },
                       ),
 
                       const SizedBox(height: 40),
